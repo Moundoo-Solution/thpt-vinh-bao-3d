@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#8e2a22">
+  <title>THPT Vĩnh Bảo – Ký ức sân trường</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud">
+    <div class="brand"><b>THPT Vĩnh Bảo</b><span>Ký ức sân trường</span></div>
+    <div class="count">Lưu bút: <b id="count">0</b>/<span id="total">10</span></div>
+    <button id="bookBtn" type="button" class="pill" title="Sổ lưu bút chung">Sổ LB</button>
+    <button id="bxhBtn" type="button" class="pill" title="Bảng xếp hạng sưu tập lưu bút">BXH</button>
+    <button id="classBtn" type="button" class="pill" title="Lớp học của bạn — mời bạn bè, trò chuyện trong lớp (phím C)">Lớp học<i id="classBadge" hidden></i></button>
+    <div class="online" title="Cựu HS/GV đang online"><span id="netDot" class="dot off"></span><b id="onlineN">—</b></div>
+    <button id="profileBtn" type="button" title="Đổi nhân vật"><b id="hudName"></b><span id="hudInfo"></span></button>
+  </div>
+  <canvas id="minimap" width="180" height="150"></canvas>
+  <div id="prompt" hidden><kbd>E</kbd><span id="promptText"></span></div>
+  <div id="toast" hidden></div>
+  <div id="help">WASD: đi · Shift: chạy · Space: nhảy · E: tương tác · Nhà xe: lấy/trả xe đạp · B: xuống xe · 1–3 tư thế · 4/V vỗ tay · M bản đồ · T chat · C lớp</div>
+
+  <div id="guestbook" hidden>
+    <div class="card gb">
+      <small>Sổ lưu bút chung</small>
+      <h2>Lời nhắn gửi trường</h2>
+      <p class="gb-hint">Giống trang 12 Trần Phú — ai vào cùng lúc đều đọc được. Mỗi lần gửi cách nhau khoảng 30 giây.</p>
+      <ul id="gbList"></ul>
+      <form id="gbForm" class="gb-form" autocomplete="off">
+        <input id="gbInput" maxlength="160" placeholder="Viết lời nhắn… (tối đa 160 ký tự)">
+        <button type="submit" class="primary">Gửi</button>
+      </form>
+      <button id="gbClose" type="button">Đóng <kbd>E</kbd></button>
+    </div>
+  </div>
+
+  <div id="classPanel" hidden>
+    <div class="card cls">
+      <button id="clsClose" class="cls-x" type="button" aria-label="Đóng">✕</button>
+      <section id="clsSetup">
+        <small>Lớp học</small>
+        <h2>Tạo lớp hoặc vào lớp</h2>
+        <p class="gb-hint">Chọn <b>lớp</b> và <b>niên khóa</b> — game tự vào phòng chat (cùng lớp + khóa là chung một phòng, không cần link mời).</p>
+        <form id="clsCreateForm" class="cls-row" autocomplete="off">
+          <label class="field"><span>Lớp</span><input id="clsName" maxlength="8" placeholder="VD: 12A12" list="pfClassList" required></label>
+          <label class="field"><span>Niên khóa</span><select id="clsYear" required></select></label>
+        </form>
+        <p id="clsJoinStatus" class="cls-status" hidden></p>
+        <details id="clsJoinExtra" class="cls-extra">
+          <summary>Vào bằng mã lớp khác (ít dùng)</summary>
+          <form id="clsJoinForm" class="cls-row" autocomplete="off">
+            <label class="field"><span>Mã lớp</span><input id="clsCode" maxlength="16" placeholder="VD: 12A1-2011"></label>
+            <button type="submit" class="ghost">Vào</button>
+          </form>
+        </details>
+        <p id="clsOffline" class="cls-off" hidden>Chưa kết nối máy chủ nên chưa tạo được lớp. Chạy game bằng <code>npm run dev</code> hoặc bản đã đưa lên Cloudflare.</p>
+      </section>
+      <section id="clsRoom" hidden>
+        <small>Lớp học</small>
+        <h2 id="clsTitle"></h2>
+        <details class="cls-extra cls-invite">
+          <summary>Link mời (tùy chọn — thường không cần)</summary>
+          <div class="cls-invite-row">
+            <input id="clsLink" readonly aria-label="Link mời">
+            <button id="clsCopy" type="button">Sao chép</button>
+            <button id="clsShare" type="button" hidden>Chia sẻ</button>
+          </div>
+        </details>
+        <p class="cls-members"><b>Đang online trong lớp:</b> <span id="clsMembers"></span></p>
+        <ul id="clsLog"></ul>
+        <form id="clsMsgForm" class="gb-form" autocomplete="off">
+          <input id="clsMsg" maxlength="300" placeholder="Nhắn cả lớp…">
+          <button type="submit" class="primary">Gửi</button>
+        </form>
+        <button id="clsLeave" type="button" class="cls-leave">Rời lớp</button>
+      </section>
+    </div>
+  </div>
+
+  <div id="talkInvite" hidden>
+    <p id="tiText"></p>
+    <div><button id="tiYes" type="button">Đồng ý</button><button id="tiNo" type="button">Từ chối</button></div>
+  </div>
+
+  <div id="talkPanel" hidden>
+    <div class="tp-head"><b id="tpTitle"></b><button id="tpEnd" type="button">Kết thúc</button></div>
+    <div id="tpRing" hidden><span id="tpRingText"></span><button id="tpAccept" type="button">Nghe</button><button id="tpRefuse" type="button">Từ chối</button></div>
+    <ul id="tpLog"></ul>
+    <form id="tpForm" autocomplete="off">
+      <input id="tpInput" maxlength="300" placeholder="Nhắn riêng…">
+      <button type="submit">Gửi</button>
+    </form>
+    <div class="tp-voice"><button id="tpCall" type="button">📞 Gọi thoại</button><button id="tpMute" type="button" hidden>🎤 Tắt mic</button><span id="tpCallState"></span></div>
+  </div>
+
+  <div id="chatBar" hidden>
+    <ul id="nearChatLog" aria-live="polite"></ul>
+    <form id="chatForm" autocomplete="off">
+      <span>Chat:</span>
+      <input id="chatInput" maxlength="120" placeholder="Nói với người đứng gần (15 m)…">
+      <button type="submit">Gửi</button>
+      <button id="chatClose" type="button" aria-label="Đóng">✕</button>
+    </form>
+  </div>
+
+  <div id="dialog" hidden>
+    <div class="card">
+      <small id="dlgKicker"></small>
+      <h2 id="dlgTitle"></h2>
+      <p id="dlgText"></p>
+      <button id="dlgClose" type="button">Đóng <kbd>E</kbd></button>
+    </div>
+  </div>
+
+  <div id="galleryView" hidden>
+    <div class="card gal">
+      <button id="galClose" class="cls-x" type="button" aria-label="Đóng">✕</button>
+      <small>Ảnh thật trường</small>
+      <h2></h2>
+      <p class="gb-hint"></p>
+      <img alt="Ảnh THPT Vĩnh Bảo" loading="lazy">
+      <button id="galClose2" type="button">Đóng <kbd>E</kbd></button>
+    </div>
+  </div>
+
+  <div id="leaderboard" hidden>
+    <div class="card lb">
+      <button id="lbClose" class="cls-x" type="button" aria-label="Đóng">✕</button>
+      <small>Thi đua kỷ niệm</small>
+      <h2>Bảng xếp hạng</h2>
+      <p class="gb-hint">Ai thu thập nhiều trang lưu bút nhất (khi chơi online). Ghi nhận theo tên nhân vật của bạn.</p>
+      <ol id="lbList"></ol>
+      <button id="lbClose2" type="button">Đóng <kbd>Esc</kbd></button>
+    </div>
+  </div>
+
+  <div id="joy" aria-label="Joystick di chuyển" role="application"><div id="knob"></div></div>
+  <nav id="mobileBar" aria-label="Điều khiển điện thoại">
+    <button id="mbMap" type="button">Bản đồ</button>
+    <button id="mbPose" type="button" title="Ngồi → nằm → nhảy múa">Tư thế</button>
+    <button id="mbChat" type="button">Chat</button>
+    <button id="mbClass" type="button">Lớp</button>
+  </nav>
+  <div id="touchBtns">
+    <button id="btnJump" type="button">Nhảy</button>
+    <button id="btnUse" type="button">E</button>
+  </div>
+
+  <div id="intro">
+    <div class="panel">
+      <section id="stepWelcome">
+        <p class="eyebrow">Chào mừng về trường</p>
+        <h1>THPT Vĩnh Bảo<span>Ký ức sân trường</span></h1>
+        <p class="credit">Sản phẩm của học sinh <b>Trần Ngọc Sơn</b> – lớp 12A1, niên khóa 2011–2014</p>
+        <p>Dạo quanh khuôn viên Trường THPT Vĩnh Bảo, số 30 Nguyễn Bỉnh Khiêm, thị trấn Vĩnh Bảo, Hải Phòng. Trường thành lập tháng 9/1961.</p>
+        <p><b>Nhiệm vụ:</b> tìm <b>10</b> trang lưu bút / kỷ vật đang phát sáng, trò chuyện với bạn bè và thầy cô, đánh kẻng ra chơi và trống vào lớp.</p>
+        <p><b>Sân trường:</b> sút bóng giữa sân trong; <kbd>E</kbd> tại vài điểm để <b>xem album ảnh thật</b> trường; chào cờ 7h (thử: <code>?chuaco</code>).</p>
+        <p><b>Cùng nhau:</b> online thấy người khác trên sân; sổ lưu bút chung; nút <b>BXH</b> xem ai sưu tập nhiều nhất; <kbd>T</kbd> chat gần.</p>
+        <ul class="keys">
+          <li><kbd>W A S D</kbd> di chuyển, <kbd>Shift</kbd> chạy, <kbd>Space</kbd> nhảy</li>
+          <li>Kéo chuột để xoay camera, lăn chuột để zoom</li>
+          <li><kbd>E</kbd> tương tác, <kbd>M</kbd> bật/tắt bản đồ, <kbd>T</kbd> chat</li>
+          <li>Trên điện thoại: <b>joystick</b> góc trái dưới để đi; kéo <b>nửa phải</b> màn hình để xoay; hai ngón zoom; nút <b>Nhảy</b> và <b>E</b> góc phải; thanh <b>Bản đồ / Chat / Lớp</b> ở dưới</li>
+        </ul>
+        <p id="inviteNote" class="invite-note" hidden></p>
+        <div id="resumeBlock" class="resume-block" hidden>
+          <p id="resumeHello" class="resume-hello"></p>
+          <button id="resumeBtn" class="primary" type="button">Vào trường</button>
+          <button id="newCharBtn" type="button" class="ghost resume-other">Đổi / tạo nhân vật khác</button>
+        </div>
+        <button id="nextBtn" class="primary" type="button">Tiếp tục</button>
+      </section>
+
+      <section id="stepProfile" hidden>
+        <p class="eyebrow" id="pfEyebrow">Bước 2/2</p>
+        <h2 class="pf-title">Nhân vật của bạn</h2>
+        <form id="profileForm" class="pf" autocomplete="off">
+          <div class="pf-preview"><canvas id="preview" width="200" height="280"></canvas></div>
+          <div class="pf-fields">
+            <div class="seg" aria-label="Vai trò">
+              <label><input type="radio" name="pf-role" value="student" checked><span>Học sinh</span></label>
+              <label><input type="radio" name="pf-role" value="teacher"><span>Giáo viên</span></label>
+            </div>
+            <div class="seg" aria-label="Giới tính">
+              <label><input type="radio" name="pf-gender" value="male" checked><span>Nam</span></label>
+              <label><input type="radio" name="pf-gender" value="female"><span>Nữ</span></label>
+            </div>
+            <div class="seg" aria-label="Đồng phục">
+              <label><input type="radio" name="pf-season" value="summer" checked><span>Mùa hè</span></label>
+              <label><input type="radio" name="pf-season" value="winter"><span>Mùa đông</span></label>
+            </div>
+            <p id="pfUniformHint" class="pf-summary">Đồng phục mùa hè: áo trắng, quần xanh.</p>
+            <label class="field"><span id="lblName">Họ và tên</span>
+              <input id="pfName" maxlength="25" placeholder="VD: Nguyễn Văn An" required></label>
+            <div class="field-row">
+              <label class="field" id="rowClass"><span>Lớp</span>
+                <input id="pfClass" maxlength="8" list="pfClassList" placeholder="VD: 12A12"></label>
+              <label class="field" id="rowSubject" hidden><span>Bộ môn</span><select id="pfSubject"></select></label>
+              <label class="field"><span id="lblYear">Niên khóa</span><select id="pfYear"></select></label>
+            </div>
+            <datalist id="pfClassList"></datalist>
+            <label class="field"><span>Lời nhắn gửi trường <small id="pfNoteCount">0/64</small></span>
+              <input id="pfNote" maxlength="64" placeholder="Không bắt buộc"></label>
+            <p id="pfSummary" class="pf-summary"></p>
+            <div class="pf-actions">
+              <button id="backBtn" type="button" class="ghost">Quay lại</button>
+              <button id="startBtn" type="submit" class="primary" disabled>Vào trường</button>
+            </div>
+            <p class="note">Thông tin nhân vật được lưu trên máy bạn — lần sau vào lại không cần nhập lại. Lời nhắn (nếu có) đăng lên <b>sổ lưu bút chung</b> khi chơi online.</p>
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js?v=20251113t"></script>
+</body>
+</html>

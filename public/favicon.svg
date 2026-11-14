@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Huy hiệu Trường THPT Vĩnh Bảo (vẽ lại theo logo trên biển cổng) -->
+  <defs>
+    <path id="top" d="M17 62 A36 36 0 1 1 83 62"/>
+    <path id="bot" d="M14 54 A36 36 0 0 0 86 54"/>
+  </defs>
+  <circle cx="50" cy="50" r="48" fill="#fff" stroke="#2a6db0" stroke-width="3"/>
+  <circle cx="50" cy="50" r="34" fill="none" stroke="#2a6db0" stroke-width="1.2"/>
+  <text font-family="Arial, sans-serif" font-weight="700" font-size="6.2" fill="#2a6db0">
+    <textPath href="#top" startOffset="50%" text-anchor="middle">SỞ GIÁO DỤC VÀ ĐÀO TẠO HẢI PHÒNG</textPath>
+  </text>
+  <text font-family="Arial, sans-serif" font-weight="700" font-size="7" fill="#2a6db0">
+    <textPath href="#bot" startOffset="50%" text-anchor="middle" dominant-baseline="hanging">TRƯỜNG THPT VĨNH BẢO</textPath>
+  </text>
+  <!-- ngọn đuốc hồng -->
+  <path d="M36 22 C30 27 30 33 35 36 C40 34 41 28 36 22 Z" fill="#ef7f97"/>
+  <!-- chữ V cách điệu nhiều sọc -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M27 38 L41 57 L41 72" stroke="#1f5fa8" stroke-width="3.2"/>
+    <path d="M31.5 38 L44.5 55.5" stroke="#2bb0c9" stroke-width="3"/>
+    <path d="M36 38 L48 54 L48 72" stroke="#1f5fa8" stroke-width="3.2"/>
+    <path d="M60 38 L48 54" stroke="#1f5fa8" stroke-width="3.2"/>
+    <path d="M55.5 38 L44.5 52" stroke="#2bb0c9" stroke-width="3"/>
+  </g>
+  <!-- quyển sách mở -->
+  <path d="M56 28 Q62 25 67 28 Q72 25 78 28 L78 38 Q72 35 67 38 Q62 35 56 38 Z M67 28 L67 38" fill="#fff" stroke="#1f5fa8" stroke-width="1.6" stroke-linejoin="round"/>
+  <!-- chấm đỏ + chữ B -->
+  <circle cx="54" cy="68" r="3.2" fill="#e53935"/>
+  <text x="58" y="72" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="24" fill="#1f5fa8">B</text>
+</svg>

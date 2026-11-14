@@ -1,0 +1,13 @@
+{
+  "name": "THPT Vĩnh Bảo — Ký ức sân trường",
+  "short_name": "Vĩnh Bảo 3D",
+  "description": "Dạo quanh khuôn viên THPT Vĩnh Bảo cùng cựu học sinh.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f111a",
+  "theme_color": "#c62828",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
