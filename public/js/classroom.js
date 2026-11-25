@@ -74,7 +74,7 @@ export function ensureClassroomShell(F, W, mats, batch, wallMat, { xc, bw, D, ro
   const lintelH = wallH - DOOR_H;
   if (lintelH > 0.08) {
     batch.add(wallMat, new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
-      F.at(xc, wallY + DOOR_H, zFront + wt / 2).multiply(new THREE.Matrix4().makeScale(DOOR_W + 0.06, lintelH, wt)));
+      F.at(xc, wallY + DOOR_H + lintelH / 2, zFront + wt / 2).multiply(new THREE.Matrix4().makeScale(DOOR_W + 0.06, lintelH, wt)));
     pushCol(W, F.rect(xc - doorHalf - 0.03, xc + doorHalf + 0.03, zFront, zFront + wt + 0.02), wallY + wallH, wallY + DOOR_H);
   }
 }

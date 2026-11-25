@@ -144,6 +144,34 @@ export function createCharacter(o = {}) {
     arms[0].add(band);
   }
 
+  // Đèn pin cầm tay phải (ban đêm, phím L)
+  const torchGrip = new THREE.Group();
+  torchGrip.position.set(0, -0.6, 0.04);
+  torchGrip.visible = false;
+  const torchBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.038, 0.044, 0.15, 10),
+    new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.55, metalness: 0.35 }),
+  );
+  torchBody.rotation.x = Math.PI / 2;
+  torchBody.position.z = 0.08;
+  torchBody.castShadow = true;
+  const torchRing = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.048, 0.048, 0.018, 12),
+    new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.45, metalness: 0.5 }),
+  );
+  torchRing.rotation.x = Math.PI / 2;
+  torchRing.position.z = 0.16;
+  const torchLens = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.052, 0.05, 0.028, 12),
+    new THREE.MeshStandardMaterial({ color: 0xfff6de, emissive: 0xffe9a8, emissiveIntensity: 0, roughness: 0.35 }),
+  );
+  torchLens.rotation.x = Math.PI / 2;
+  torchLens.position.z = 0.175;
+  const torchMuzzle = new THREE.Object3D();
+  torchMuzzle.position.z = 0.2;
+  torchGrip.add(torchBody, torchRing, torchLens, torchMuzzle);
+  arms[1].add(torchGrip);
+
   root.scale.setScalar(aodai || look.kind === 'girl' ? 0.88 : 0.92);
 
   let phase = 0, swing = 0, danceT = 0, clapT = 0, singT = 0, bikePhase = 0;
@@ -246,6 +274,24 @@ export function createCharacter(o = {}) {
     body.rotation.y = Math.sin(danceT * 0.45) * 0.1 * a;
   }
 
+  let flashOn = false;
+
+  function setFlashlight(on, viewDir, facing, pitch = 0.3) {
+    flashOn = !!on;
+    torchGrip.visible = flashOn;
+    torchLens.material.emissiveIntensity = flashOn ? 0.85 : 0;
+    if (!flashOn) return;
+    const rel = Math.atan2(viewDir.x, viewDir.z) - facing;
+    const clampA = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    arms[1].rotation.x = clampA(-0.78 - pitch * 0.55, -1.35, -0.35);
+    arms[1].rotation.z = 0.08;
+    arms[1].rotation.y = clampA(rel * 0.85, -1.05, 1.05);
+    arms[0].rotation.x = -0.22;
+    arms[0].rotation.z = -0.08;
+    torchGrip.rotation.y = Math.PI + clampA(rel * 0.2, -0.3, 0.3);
+    torchGrip.rotation.x = clampA(-pitch * 0.1, -0.18, 0.12);
+  }
+
   function update(dt, speed, airborne, vy = 0, pose = null) {
     if (pose === 'sit') { poseSit(); return; }
     if (pose === 'lie') { poseLie(); return; }
@@ -253,6 +299,19 @@ export function createCharacter(o = {}) {
     if (pose === 'bike') { poseBike(dt, speed); return; }
     if (pose === 'sing') { poseSing(dt, speed); return; }
     if (pose === 'dance') { poseDance(dt, speed); return; }
+    if (flashOn) {
+      const moving = speed > 0.1;
+      if (moving && !airborne) phase += dt * (3.5 + speed * 1.7);
+      const amp = Math.min(speed / 3.2, 1.25) * 0.6;
+      if (!airborne) {
+        const target = moving ? Math.sin(phase) * amp : 0;
+        swing += (target - swing) * Math.min(1, dt * 12);
+        legs[0].rotation.x = swing;
+        legs[1].rotation.x = -swing;
+        body.position.y = moving ? Math.abs(Math.sin(phase)) * 0.045 * Math.min(speed / 3, 1.3) : 0;
+      }
+      return;
+    }
     if (Math.abs(body.rotation.x) > 0.002 || Math.abs(body.position.y) > 0.002 || Math.abs(body.rotation.y) > 0.002) {
       body.rotation.x = lerp(body.rotation.x, 0, 14, dt);
       body.rotation.y = lerp(body.rotation.y, 0, 14, dt);
@@ -286,7 +345,7 @@ export function createCharacter(o = {}) {
     flaps[1] && (flaps[1].rotation.x = airborne ? -0.2 : -Math.abs(swing) * 0.35);
   }
 
-  return { root, update };
+  return { root, update, setFlashlight, torchMuzzle, torchGrip };
 }
 
 // Ngoại hình theo hồ sơ — đồng phục HS theo ảnh lễ ngoài trời THPT Vĩnh Bảo (~2026): mùa hè áo trắng + quần xanh đậm.

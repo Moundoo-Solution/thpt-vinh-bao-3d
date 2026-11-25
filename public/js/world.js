@@ -1,4 +1,4 @@
-// Dựng toàn bộ khuôn viên bằng code (không dùng file mô hình). /* build 20251113s */
+// Dựng toàn bộ khuôn viên bằng code (không dùng file mô hình). /* build 20251115p */
 // Toạ độ: +z hướng ra đường Nguyễn Bỉnh Khiêm (cổng trường), đơn vị mét.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -96,6 +96,8 @@ export function buildWorld(scene) {
     collectibles: [],
     rects: [],
     updaters: [],
+    lampPoints: [],   // [x, y, z, cỡ quầng] — đèn đường, bật về đêm
+    lampEmissive: [], // vật liệu bóng đèn, tăng phát sáng về đêm
     classroomDoors: [],
     classroomRooms: [],
     ladders: [],
@@ -113,6 +115,8 @@ export function buildWorld(scene) {
     asphalt: T.asphaltTexture(),
     facade: T.facadeTexture(true),
     facadeBack: T.facadeTexture(false),
+    facadeLit: T.facadeLightsTexture(true, 3),
+    facadeBackLit: T.facadeLightsTexture(false, 11),
     balustrade: T.balustradeTexture(),
     fence: T.fencePanelTexture(),
     house: T.houseFacadeTexture(),
@@ -146,8 +150,8 @@ export function buildWorld(scene) {
     yard: texMat(tex.yard),
     sidewalk: texMat(tex.sidewalk),
     asphalt: texMat(tex.asphalt, { roughness: 0.95 }),
-    facade: texMat(tex.facade),
-    facadeBack: texMat(tex.facadeBack),
+    facade: texMat(tex.facade, { emissiveMap: tex.facadeLit, emissive: 0xffffff, emissiveIntensity: 0 }),
+    facadeBack: texMat(tex.facadeBack, { emissiveMap: tex.facadeBackLit, emissive: 0xffffff, emissiveIntensity: 0 }),
     balustrade: texMat(tex.balustrade, { alphaTest: 0.5, side: THREE.DoubleSide }),
     fence: texMat(tex.fence),
     house: texMat(tex.house, { alphaTest: 0.5 }),
@@ -231,13 +235,15 @@ export function buildWorld(scene) {
     const pw = Math.min(1.65, bw * 0.42);
     const ph = pw * (200 / 800);
     const mat = texMat(tex, { side: THREE.DoubleSide });
-    mat.depthWrite = true;
+    // Không ghi depth — tránh bị vách cửa / mặt tiền nuốt khi đứng gần (đặc biệt tầng 1).
+    mat.depthWrite = false;
+    mat.depthTest = true;
     mat.polygonOffset = true;
-    mat.polygonOffsetFactor = -2;
-    mat.polygonOffsetUnits = -2;
+    mat.polygonOffsetFactor = -4;
+    mat.polygonOffsetUnits = -4;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
     mesh.applyMatrix4(F.at(lx, ly, lz));
-    mesh.renderOrder = 4;
+    mesh.renderOrder = 60;
     mesh.receiveShadow = false;
     root.add(mesh);
   }
@@ -357,8 +363,9 @@ export function buildWorld(scene) {
       if (!name || i >= roomSlots.length) return;
       const xc = roomSlots[i] + bw * 0.5;
       // Biển trên vách cửa lớp (mặt hướng hành lang), mọi tầng — không đặt trước lan can.
-      const plateY = f === 0 ? 2.9 : f * FH + 2.58;
-      const plateZ = roomFront + 0.09;
+      const plateY = f === 0 ? 2.95 : f * FH + 2.58;
+      // Đặt ra ngoài tường phòng (mặt ngoài ~+0.10) và mặt tiền (+0.01), trước cột hành lang.
+      const plateZ = roomFront + (f === 0 ? 0.34 : 0.28);
       roomPlate(F, name, xc, plateY, plateZ, bw);
       const code = String(name).toUpperCase().replace(/\s/g, '');
       if (isClassRoomCode(code)) {
@@ -822,9 +829,9 @@ export function buildWorld(scene) {
     for (const s of [-1, 1]) batch.add(M(0xe8d6b0), new THREE.CylinderGeometry(0.52, 0.52, 0.02, 22).rotateX(Math.PI / 2), drumF.at(0, top + 1.1, s * 0.43));
     addCollider(drumF, -0.7, 0.7, -0.5, 0.5, top + 1.7);
     W.interact.push({ x: -6.8, z: -20.3, r: 2.4, label: 'Đánh trống vào lớp', action: 'drum' });
-    // cây cảnh tròn hai bên sân khấu
+    // cây cảnh tròn hai bên sân khấu (phía trong, tránh che biển quảng cáo phía khán giả)
     for (const s of [-1, 1]) {
-      const x = s * 10.6, z = -23.5;
+      const x = s * 9.2, z = -24.4;
       box(mats.white, WORLD, 1.6, 0.4, 1.6, x, 0, z);
       cyl(mats.trunk, WORLD, 0.14, 1.2, x, 0.4, z, 0.8);
       blob(mats.leafDark, WORLD, x, 1.9, z, 1.25, 0.95, 1.25);
@@ -858,6 +865,115 @@ export function buildWorld(scene) {
     title: 'Bảng vàng truyền thống',
     text: '• Tháng 9/1961: thành lập trường Cấp 3 Vĩnh Bảo.\n• 19/9/1970: mang tên Trường phổ thông cấp 3 Vĩnh Bảo (QĐ 317/QĐ của UBND TP Hải Phòng), sau đổi thành Trường THPT Vĩnh Bảo.\n• Huân chương Lao động hạng Ba (1996), hạng Nhì (2006), hạng Nhất (2011).\n• Đạt chuẩn Quốc gia mức độ 2 năm 2020.\n• 2006–2010: 5 năm liền có thủ khoa đại học — “Ngôi trường của những thủ khoa”.\n\nNguồn: website thptvinhbao.haiphong.edu.vn và báo Thương hiệu & Công luận.',
   });
+
+  // Biển quảng cáo có chân — tạm ẩn (đặt true để hiện lại)
+  const SHOW_SPONSOR_ADS = false;
+  const frameAd = M(0x1c1c1e, { metalness: 0.55, roughness: 0.45 });
+  function mountStandingAd(x, z, boardW, aspect, adTopRefH, material, interact, rotY = 0) {
+    const boardH = boardW * aspect;
+    const topRef = 0.95 + adTopRefH;
+    const boardY = topRef - boardH / 2;
+    const poleH = topRef + 0.08;
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    root.add(g);
+    for (const lx of [-boardW / 2 - 0.06, boardW / 2 + 0.06]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, poleH, 10), frameAd);
+      pole.position.set(lx, poleH / 2, -0.05);
+      pole.castShadow = true;
+      g.add(pole);
+    }
+    const back = new THREE.Mesh(new THREE.BoxGeometry(boardW + 0.14, boardH + 0.1, 0.05), frameAd);
+    back.position.set(0, boardY, -0.07);
+    back.castShadow = true;
+    g.add(back);
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(boardW, boardH), material);
+    board.position.set(0, boardY, 0.03);
+    board.castShadow = board.receiveShadow = true;
+    g.add(board);
+    W.interact.push(interact);
+  }
+  function adBillboardMat(tex) {
+    const mat = texMat(tex, {
+      emissiveMap: tex,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.06,
+      roughness: 0.9,
+      metalness: 0.02,
+    });
+    mat.userData.adBillboard = true;
+    W.lampEmissive.push(mat);
+    return mat;
+  }
+  const adZ = -23.1;
+  const adW = 3.2;
+  const adTopRefH = adW * (941 / 1672);
+  const adGap = adW + 0.38;
+
+  if (SHOW_SPONSOR_ADS) {
+  const popTex = T.poppyPetBillboardTexture();
+  mountStandingAd(-11.0, adZ, adW, 443 / 1600, adTopRefH, adBillboardMat(popTex), {
+    x: -11, z: -21.6, r: 3.6,
+    label: 'POPPY PET',
+    title: 'POPPY PET – Thú cưng Vĩnh Bảo',
+    text: 'Cắt tỉa · Thức ăn · Phụ kiện thú cưng.\n\n118A Tân Hòa, Vĩnh Bảo — Zalo 0829.982.682.\nFacebook: Phạm Văn Lịch.',
+  });
+  new THREE.TextureLoader().load('ads/cong-son-store.jpg?v=1', (csTex) => {
+    csTex.colorSpace = THREE.SRGBColorSpace;
+    csTex.anisotropy = 8;
+    mountStandingAd(-11.0 - adGap, adZ, adW, 941 / 1672, adTopRefH, adBillboardMat(csTex), {
+      x: -11.0 - adGap,
+      z: -21.6,
+      r: 3.8,
+      label: 'Công Sơn Store',
+      title: 'Công Sơn Store – Thế Giới iPhone Chất',
+      text: 'Hotline: 0888 156 666 · 0796 385 555.\n\n• CS1: 243 Lạch Tray, Đằng Giang, Hải Phòng.\n• CS2: 172 Đông Thái, Vĩnh Bảo, Hải Phòng.',
+    });
+  }, undefined, (err) => console.warn('cong-son-store texture:', err));
+
+  const adLoader = new THREE.TextureLoader();
+  const loadAd = (url, x, aspect, label, title, text) => {
+    adLoader.load(url, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      mountStandingAd(x, adZ, adW, aspect, adTopRefH, adBillboardMat(tex), { x, z: -21.6, r: 3.8, label, title, text });
+    }, undefined, (err) => console.warn(url, err));
+  };
+  const meKemAsp = 1024 / 1536;
+  const simeeAsp = 168 / 586;
+  loadAd(
+    'ads/simee-tea.jpg?v=3',
+    13.55,
+    simeeAsp,
+    'SiMee',
+    'SiMee – Tea · Coffee & Pastries',
+    'Trà · cà phê · bánh ngọt phong cách hiện đại.\n\nĐến thưởng thức tại cửa hàng SiMee.',
+  );
+  loadAd(
+    'ads/me-kem-fruits.jpg?v=4',
+    13.55 + adGap,
+    meKemAsp,
+    'Mẹ Kem Fruits',
+    'Mẹ Kem Fruits – Trái cây nhập khẩu',
+    'Trái cây nhập khẩu · hoa quả vùng miền · đồ ăn vặt ngon.\n\nSố 35 – KP 3/2 – Vĩnh Bảo, HP.\nĐiện thoại: 0355 111 332.\nFacebook: Ly (Mẹ Kem Fruits).',
+  );
+  // Dãy nhà phải phía cổng — gian đầu sát lối vào sân trong
+  const tyAspect = 316 / 968;
+  const tyW = 2.85;
+  const tyX = 4.72;
+  const tyZ = 13.2;
+  new THREE.TextureLoader().load('ads/ty-cung.jpg?v=1', (tyTex) => {
+    tyTex.colorSpace = THREE.SRGBColorSpace;
+    tyTex.anisotropy = 8;
+    mountStandingAd(tyX, tyZ, tyW, tyAspect, adTopRefH, adBillboardMat(tyTex), {
+      x: tyX, z: tyZ, r: 3.5,
+      label: 'Tý Cưng',
+      title: 'Tý Cưng – Thời trang cả gia đình',
+      text: 'Thời trang cho cả gia đình.\n\nThượng Điện – Vĩnh Bảo – Hải Phòng.\nĐiện thoại: 0979 756 623.\nFacebook: Nguyễn Luyên.',
+    }, -Math.PI / 2);
+  }, undefined, (err) => console.warn('ty-cung texture:', err));
+  }
 
   W.interact.push({
     x: 18, z: -28.2, r: 3, label: 'Xem nhà học chính',
@@ -968,6 +1084,7 @@ export function buildWorld(scene) {
     [15, 4, 'round', 0.88],
   ]) placeYardTree(x, z, t, s);
   for (const [x, z] of [[-68, -10], [-68, 10], [-68, 26], [68, -12], [68, 8], [68, 24], [-30, -50], [-10, -51], [12, -50], [32, -51]]) roundTree(x, z, 1.1);
+
   // Vườn cây bên trái sân trong: cây cổ thụ (dưới gốc treo kẻng), bồn cây viền gạch, ghế đá, cau (theo ảnh 2022).
   {
     const x = -34, z = 4;
@@ -1033,21 +1150,39 @@ export function buildWorld(scene) {
 
     // --- vỉa hè đối diện ---
     const fenceGreen = M(0x1f4a2e, { metalness: 0.4, roughness: 0.5 });
-    const ornament = texMat(T.ornamentFenceTexture(), { alphaTest: 0.5, side: THREE.DoubleSide });
-    plane(ornament, WORLD, 120, 1.25, 0, 0.62, 53.1, 0, 120 / 2.6, 1);
+    const ornamentTex = T.ornamentFenceTexture();
+    const ornament = texMat(ornamentTex, { alphaTest: 0.5, side: THREE.DoubleSide });
+    const ornamentLit = texMat(ornamentTex, {
+      alphaTest: 0.5, side: THREE.DoubleSide, emissiveMap: ornamentTex, emissive: 0xffffff, emissiveIntensity: 0.2,
+    });
+    W.lampEmissive.push(ornamentLit);
+    const FENCE_GATE_HALF = 3.4;
+    plane(ornament, WORLD, 52, 1.25, -31, 0.62, 53.1, 0, 52 / 2.6, 1);
+    // Cổng vào sân bóng — không lan can giữa (theo ảnh người chơi)
+    plane(ornament, WORLD, 52, 1.25, 31, 0.62, 53.1, 0, 52 / 2.6, 1);
     for (let x = -60; x <= 60; x += 2.6) {
+      if (Math.abs(x) < FENCE_GATE_HALF) continue;
       box(fenceGreen, WORLD, 0.16, 1.45, 0.16, x, 0, 53.1);
       blob(fenceGreen, WORLD, x, 1.52, 53.1, 0.11, 0.11, 0.11);
     }
-    W.colliders.push({ minX: -60.2, maxX: 60.2, minZ: 52.9, maxZ: 53.3, top: 1.5 });
-    const globe = M(0xf4f1e6, { emissive: 0xfff3d0, emissiveIntensity: 0.25 });
+    W.colliders.push({ minX: -60.2, maxX: -FENCE_GATE_HALF, minZ: 52.9, maxZ: 53.3, top: 1.5 });
+    W.colliders.push({ minX: FENCE_GATE_HALF, maxX: 60.2, minZ: 52.9, maxZ: 53.3, top: 1.5 });
+    const globe = M(0xf4f1e6, { emissive: 0xfff3d0, emissiveIntensity: 0.28 });
+    const globeBright = M(0xf8f4ea, { emissive: 0xfff8dc, emissiveIntensity: 0.45 });
+    W.lampEmissive.push(globe, globeBright);
+    const fenceZ = 53.1;
+
     for (let x = -56; x <= 56; x += 16) {
+      const nearGate = Math.abs(x) <= 24;
+      const bulb = nearGate ? globeBright : globe;
       // đèn cột đôi cầu tròn màu xanh
       cyl(fenceGreen, WORLD, 0.08, 3.5, x, 0, 52.5, 0.7);
       box(fenceGreen, WORLD, 0.9, 0.06, 0.06, x, 3.3, 52.5);
       for (const s of [-1, 1]) {
         cyl(fenceGreen, WORLD, 0.03, 0.25, x + s * 0.42, 3.05, 52.5);
-        blob(globe, WORLD, x + s * 0.42, 2.95, 52.5, 0.2, 0.2, 0.2);
+        const br = nearGate ? 0.22 : 0.2;
+        blob(bulb, WORLD, x + s * 0.42, 2.95, 52.5, br, br, br);
+        W.lampPoints.push([x + s * 0.42, 2.95, 52.5, nearGate ? 4 : 3.2]);
       }
       W.colliders.push({ minX: x - 0.12, maxX: x + 0.12, minZ: 52.38, maxZ: 52.62, top: 3.5 });
     }
@@ -1066,11 +1201,13 @@ export function buildWorld(scene) {
       }
       W.colliders.push({ minX: tx - 0.75, maxX: tx + 0.75, minZ: 49.65, maxZ: 51.15, top: 0.6 });
     }
-    // đèn đường cao, cần vươn ra lòng đường
+    // đèn đường cao, cần vươn ra lòng đường (bỏ cột x=0 — không che cổng)
     for (let x = -96; x <= 96; x += 32) {
+      if (x === 0) continue;
       cyl(M(0xa7a9ab, { metalness: 0.5 }), WORLD, 0.1, 9, x, 0, 48.5, 0.6);
       batch.add(M(0xa7a9ab, { metalness: 0.5 }), new THREE.CylinderGeometry(0.04, 0.05, 2.2, 6).rotateX(Math.PI / 2 - 0.25), xform(x, 8.9, 47.5));
       box(M(0xdedede), WORLD, 0.3, 0.12, 0.7, x, 9.05, 46.4);
+      W.lampPoints.push([x, 8.9, 46.4, 7]);
       W.colliders.push({ minX: x - 0.15, maxX: x + 0.15, minZ: 48.35, maxZ: 48.65, top: 9 });
     }
 
@@ -1098,6 +1235,7 @@ export function buildWorld(scene) {
       const lattice = M(0x9a9ea2, { metalness: 0.5 });
       batch.add(lattice, new THREE.CylinderGeometry(0.25, 0.7, 24, 4).translate(0, 12, 0), xform(x, 0, z, Math.PI / 4));
       const lampHead = M(0xe8e8e8, { emissive: 0xfffbe0, emissiveIntensity: 0.15 });
+      W.lampPoints.push([x - Math.sign(x) * 0.6, 24.5, z - Math.sign(z - 90) * 0.6, 12]);
       batch.add(lampHead, GEO.cbox, xform(x - Math.sign(x) * 0.6, 24.5, z - Math.sign(z - 90) * 0.6, Math.atan2(-x, -(z - 90)), -0.4).multiply(new THREE.Matrix4().makeScale(3.4, 2.2, 0.35)));
     }
     // khán đài bê tông vàng, mặt bậc nâu đỏ
@@ -1130,6 +1268,10 @@ export function buildWorld(scene) {
     // tường vàng thấp quanh khu sân
     box(M(0xe3c46a), WORLD, 0.3, 2.2, 70, -60.5, 0, 90.5);
     box(M(0xe3c46a), WORLD, 0.3, 2.2, 70, 60.5, 0, 90.5);
+    const pitchZ0 = 58.5, pitchZ1 = 122.5, pitchHalfW = 48;
+    W.colliders.push({ minX: -pitchHalfW, maxX: pitchHalfW, minZ: pitchZ1 - 0.25, maxZ: pitchZ1 + 0.25, top: 2.8 });
+    W.colliders.push({ minX: -49, maxX: -pitchHalfW + 0.5, minZ: pitchZ0, maxZ: pitchZ1, top: 2.8 });
+    W.colliders.push({ minX: pitchHalfW - 0.5, maxX: 49, minZ: pitchZ0, maxZ: pitchZ1, top: 2.8 });
 
     // --- nhà dân hai đầu đường ---
     const walls = [['#f1e2c6', 0xf1e2c6], ['#d9e4ea', 0xd9e4ea], ['#f2cbb7', 0xf2cbb7], ['#e9e3a8', 0xe9e3a8], ['#dcd3ea', 0xdcd3ea], ['#f7f4ec', 0xf7f4ec], ['#cfe3c8', 0xcfe3c8], ['#a9c6e8', 0xa9c6e8]];
@@ -1172,6 +1314,58 @@ export function buildWorld(scene) {
       }
       box(M(0x8f9396), WORLD, 8, 2.8, 0.1, bx, 0, front - 0.04);
       sign(T.signTexture([{ text: 'BIA HƠI', size: 46 }, { text: 'TUẤN THẢO', size: 92 }], { w: 1400, h: 300, bg: '#efe7da', fg: '#b3261e', border: '#3d4b55' }), 9.5, 1.6, bx, 3.35, front - 0.35, Math.PI);
+      // Sân bia hơi vỉa hè: bàn ghế nhựa, gỗ, thùng — ly chứa đầy
+      {
+        const plasticR = M(0xd84315), plasticB = M(0x1565c0), woodTbl = M(0x8d6e3a), steel = M(0x616161, { metalness: 0.5 });
+        const mugMat = M(0xffb74d, { metalness: 0.35 });
+        ground(texMat(T.tileTexture('#a9a59c', '#93908a', 4, 4), { roughness: 0.95 }), -66.5, 52.35, 13, 4.8, 0.025, 1.2);
+        function beerStool(x, z, col = plasticR) {
+          cyl(col, WORLD, 0.24, 0.38, x, 0, z);
+          batch.add(steel, new THREE.TorusGeometry(0.22, 0.022, 5, 14).rotateX(Math.PI / 2).translate(0, 0.36, 0), xform(x, 0, z));
+        }
+        function mugs(x, z, n = 3) {
+          for (let i = 0; i < n; i++) {
+            const mx = x - 0.18 + i * 0.2, mz = z + (i % 2) * 0.14;
+            cyl(mugMat, WORLD, 0.045, 0.11, mx, 0.76, mz);
+            blob(mugMat, WORLD, mx, 0.83, mz, 0.07, 0.035, 0.07);
+          }
+        }
+        function lowRoundTable(x, z, top = plasticR) {
+          cyl(woodTbl, WORLD, 0.05, 0.7, x, 0, z);
+          cyl(top, WORLD, 0.52, 0.05, x, 0.72, z, 1.02);
+          for (const [dx, dz] of [[0, 1.0], [0, -1.0], [0.92, 0], [-0.92, 0]])
+            beerStool(x + dx, z + dz, dz > 0 ? plasticB : plasticR);
+          mugs(x, z);
+        }
+        function plankTable(x, z, ry = 0) {
+          box(woodTbl, WORLD, 1.45, 0.06, 0.78, x, 0.74, z, { ry });
+          for (const [lx, lz] of [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]]) {
+            const px = x + lx * Math.cos(ry) - lz * Math.sin(ry);
+            const pz = z + lx * Math.sin(ry) + lz * Math.cos(ry);
+            box(woodTbl, WORLD, 0.06, 0.72, 0.06, px, 0, pz);
+          }
+          beerStool(x + Math.sin(ry) * 1.08, z + Math.cos(ry) * 1.08, plasticB);
+          beerStool(x - Math.sin(ry) * 1.08, z - Math.cos(ry) * 1.08);
+          mugs(x, z, 4);
+        }
+        function barrelTable(x, z) {
+          batch.add(woodTbl, new THREE.CylinderGeometry(0.38, 0.42, 0.65, 10).translate(0, 0.325, 0), xform(x, 0, z));
+          cyl(woodTbl, WORLD, 0.48, 0.05, x, 0.67, z);
+          for (let a = 0; a < 3; a++) {
+            const ang = a * 2.09 + 0.2;
+            beerStool(x + Math.sin(ang) * 1.02, z + Math.cos(ang) * 1.02, a % 2 ? plasticB : plasticR);
+          }
+          mugs(x, z, 2);
+        }
+        lowRoundTable(-63.2, 53.05);
+        lowRoundTable(-69.4, 52.55, plasticB);
+        plankTable(-66.2, 51.25, 0.2);
+        barrelTable(-72.0, 52.15);
+        cyl(M(0x78909c), WORLD, 0.04, 2.35, -64.8, 0, 52.9);
+        blob(M(0xc62828, { side: THREE.DoubleSide }), WORLD, -64.8, 2.32, 52.9, 1.15, 0.035, 1.15);
+        box(M(0x4e342e), WORLD, 0.5, 0.04, 0.35, -62.2, 0.76, 52.5);
+        for (const ox of [0.12, -0.08]) blob(M(0xfff9c4), WORLD, -62.2 + ox, 0.82, 52.5, 0.12, 0.08, 0.12);
+      }
       // giàn hoa giấy tím
       const purple = M(0x9b3fb0, { flatShading: true }), purple2 = M(0xc25bd0, { flatShading: true });
       for (let k = 0; k < 10; k++) blob(k % 2 ? purple : purple2, WORLD, -60 + Math.cos(k) * 1.5, 2.2 + (k % 4) * 0.9, 57 + k * 0.7, 1.4, 1.0, 1.2);
@@ -1179,16 +1373,21 @@ export function buildWorld(scene) {
       box(M(0xe8c66a), WORLD, 9, 6.6, 8, -66, 0, 74, { collide: true });
       batch.add(mats.tileRoof, GEO.pyramid, xform(-66, 6.6, 74).multiply(new THREE.Matrix4().makeScale(7, 2.2, 6.2)));
       W.interact.push({
-        x: bx + 4, z: 51.5, r: 5, label: 'Xem quán Tuấn Thảo',
-        title: 'Quán bia Tuấn Thảo',
-        text: 'Ngôi nhà 4 tầng ở góc đầu sân bóng phía Tây, đối diện trường bên kia đường Nguyễn Bỉnh Khiêm, cạnh giàn hoa giấy tím.',
+        x: -66, z: 52.2, r: 6, label: 'Quán bia Tuấn Thảo',
+        title: 'Bia hơi Tuấn Thảo',
+        text: 'Sân vỉa hè trước quán: bàn nhựa đỏ xanh, bàn gỗ, bàn thùng — khách ngồi nhậu bia hơi buổi chiều tối.\n\nGóc đầu sân bóng phía Tây, cạnh giàn hoa giấy tím, đối diện cổng trường.',
       });
     }
     W.rects.push({ minX: -50, maxX: 50, minZ: 58.5, maxZ: 122.5, kind: 'field' });
     W.interact.push({
-      x: 0, z: 51.6, r: 6, label: 'Xem sân bóng',
-      title: 'Sân bóng đối diện cổng trường',
-      text: 'Bên kia đường là sân bóng cỏ nhân tạo, khán đài bê tông vàng ba phía, cột đèn cao áp và lưới chắn bóng; phía xa là nhà thi đấu mái vòm. Vỉa hè lát đá xám, hàng rào sắt xanh hoa văn, đèn cột đôi cầu tròn và hàng cây non mới trồng.',
+      x: 0, z: 52.4, r: 5, label: 'Vào sân bóng',
+      title: 'Cổng sân bóng nhân tạo',
+      text: 'Cổng mở giữa hàng rào xanh đối diện cổng trường — đi thẳng qua đường là vào sân cỏ nhân tạo. Có bóng trắng giữa sân để đá.',
+    });
+    W.interact.push({
+      x: 0, z: 90.5, r: 10, label: 'Đá bóng (sân nhân tạo)',
+      title: 'Sân bóng đối diện cổng',
+      text: 'Sân cỏ nhân tạo, khán đài vàng ba phía. Chạy sát bóng và di chuyển nhanh (WASD + Shift) để sút.',
     });
   }
 
@@ -1281,7 +1480,8 @@ export function buildWorld(scene) {
     x: 8, z: 18, r: 4,
     label: 'Sút bóng (chạy tới bóng)',
     title: 'Sân đá banh',
-    text: 'Bóng trắng trên sân — chạy sát và sút bằng chuyển động (WASD + Shift). Bóng lăn trong sân trong, không ra đường.',
+    text: 'Bóng trắng — chạy sát và sút (WASD + Shift). Qua cổng hàng rào xanh đối diện cổng trường để vào sân nhân tạo bên kia đường.',
   });
+  W.nightMats = [mats.facade, mats.facadeBack];
   return W;
 }

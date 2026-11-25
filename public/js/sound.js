@@ -86,3 +86,67 @@ export function kengSound() {
     noiseBurst(a, t, 0.05, 6000, 0.25);
   });
 }
+
+// Pháo hoa: tiếng rít khi bắn (tần số tăng dần).
+export function fireworkWhistle(vol = 0.45) {
+  if (vol < 0.03) return;
+  const a = unlockAudio();
+  const t = a.currentTime;
+  const dur = 1.12;
+  const o = a.createOscillator();
+  const g = a.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(320, t);
+  o.frequency.exponentialRampToValueAtTime(2400, t + dur * 0.82);
+  o.frequency.exponentialRampToValueAtTime(650, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol * 0.2, t + 0.035);
+  g.gain.setValueAtTime(vol * 0.16, t + dur * 0.45);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination);
+  o.start(t);
+  o.stop(t + dur + 0.04);
+  const buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 0.65;
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  const bp = a.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.setValueAtTime(520, t);
+  bp.frequency.exponentialRampToValueAtTime(4200, t + dur * 0.88);
+  bp.Q.value = 9;
+  const gn = a.createGain();
+  gn.gain.setValueAtTime(0.0001, t);
+  gn.gain.exponentialRampToValueAtTime(vol * 0.11, t + 0.04);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bp).connect(gn).connect(a.destination);
+  src.start(t);
+}
+
+// Pháo hoa: tiếng nổ (bụp trầm + nổ nhỏ phía sau với quả bông).
+export function fireworkBoom(vol = 0.5, kind = 'ball') {
+  if (vol < 0.03) return;
+  const a = unlockAudio();
+  const t = a.currentTime;
+  const dur = kind === 'ray' ? 0.48 : 0.72;
+  noiseBurst(a, t, dur, kind === 'ray' ? 480 : 260, vol * 0.8);
+  noiseBurst(a, t, 0.07, 160, vol * 0.42);
+  const o = a.createOscillator();
+  const g = a.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(kind === 'ray' ? 95 : 68, t);
+  o.frequency.exponentialRampToValueAtTime(32, t + dur);
+  g.gain.setValueAtTime(vol * 0.32, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination);
+  o.start(t);
+  o.stop(t + dur + 0.03);
+  if (kind === 'ball') {
+    for (let i = 0; i < 7; i++) {
+      noiseBurst(a, t + 0.04 + i * 0.065, 0.035, 1400 + i * 350, vol * 0.12);
+    }
+  } else {
+    noiseBurst(a, t + 0.03, 0.12, 2200, vol * 0.18);
+  }
+}

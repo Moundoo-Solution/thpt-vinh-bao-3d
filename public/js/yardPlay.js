@@ -1,27 +1,47 @@
 // Hoạt động sân trường: chào cờ, bóng đá, album ảnh thật.
 import * as THREE from 'three';
 
-export function installYardPlay(scene, W, root) {
+function makeSoccerBall(root) {
   const ball = new THREE.Mesh(
     new THREE.SphereGeometry(0.22, 14, 12),
     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45 }),
   );
-  ball.position.set(8, 0.22, 18);
   ball.castShadow = true;
-  root.add(ball);
   const stripe = new THREE.Mesh(
     new THREE.BoxGeometry(0.44, 0.04, 0.06),
     new THREE.MeshStandardMaterial({ color: 0x212121 }),
   );
   stripe.rotation.z = Math.PI / 2;
   ball.add(stripe);
-  W.soccerBall = {
-    mesh: ball,
-    pos: ball.position,
-    vel: new THREE.Vector3(),
-    onGround: true,
-    spawn: { x: 8, z: 18 },
-  };
+  root.add(ball);
+  return ball;
+}
+
+function ballInPlayZone(x, z) {
+  const school = Math.abs(x) <= 62 && z <= 52 && z >= -42;
+  const pitch = Math.abs(x) <= 48 && z >= 58.5 && z <= 122.5;
+  return school || pitch;
+}
+
+export function installYardPlay(scene, W, root) {
+  const balls = [];
+  function placeBall(x, z) {
+    const mesh = makeSoccerBall(root);
+    mesh.position.set(x, 0.22, z);
+    const state = {
+      mesh,
+      pos: mesh.position,
+      vel: new THREE.Vector3(),
+      onGround: true,
+      spawn: { x, z },
+    };
+    balls.push(state);
+    return state;
+  }
+  placeBall(8, 18);
+  placeBall(0, 90.5);
+  W.soccerBalls = balls;
+  W.soccerBall = balls[0];
 
   const albums = [
     { x: 0, z: 36.8, r: 3.2, img: 'reference/2022-cong-nhin-tu-trong.jpg', title: 'Cổng nhìn từ trong', text: 'Ảnh thực tế khu cổng trường.' },
@@ -43,31 +63,41 @@ export function installYardPlay(scene, W, root) {
 }
 
 export function tickSoccer(W, col, player, dt) {
-  const b = W.soccerBall;
-  if (!b) return;
+  const list = W.soccerBalls || (W.soccerBall ? [W.soccerBall] : []);
+  for (const b of list) tickOneBall(b, col, player, dt);
+}
+
+const BALL_DRAG = 0.968;
+const BALL_GRAVITY = 15;
+const BALL_KICK = 6.8;
+const BALL_PLAYER_PUSH = 0.55;
+
+function tickOneBall(b, col, player, dt) {
   const { pos, vel, mesh } = b;
   const d = Math.hypot(pos.x - player.pos.x, pos.z - player.pos.z);
   const kick = d < 0.85 && Math.hypot(player.vel.x, player.vel.z) > 2;
   if (kick && performance.now() - (b.lastKick || 0) > 400) {
     b.lastKick = performance.now();
     const dx = pos.x - player.pos.x, dz = pos.z - player.pos.z, len = Math.hypot(dx, dz) || 1;
-    vel.set((dx / len) * 9 + player.vel.x * 0.4, 0, (dz / len) * 9 + player.vel.z * 0.4);
+    vel.set((dx / len) * BALL_KICK + player.vel.x * BALL_PLAYER_PUSH, 0, (dz / len) * BALL_KICK + player.vel.z * BALL_PLAYER_PUSH);
     b.onGround = false;
   }
-  vel.multiplyScalar(0.985);
+  const sp = Math.hypot(vel.x, vel.z);
+  const drag = BALL_DRAG - Math.min(0.012, sp * 0.0015 * dt);
+  vel.multiplyScalar(drag);
   pos.x += vel.x * dt;
   pos.z += vel.z * dt;
   const gY = col.groundAt(pos.x, pos.z, 0);
   let y = gY + 0.22;
   if (!b.onGround) {
-    b.vy = (b.vy ?? 0) - 12 * dt;
+    b.vy = (b.vy ?? 0) - BALL_GRAVITY * dt;
     y += b.vy * dt;
     if (y <= gY + 0.22) { y = gY + 0.22; b.vy = 0; b.onGround = true; }
   }
   mesh.position.set(pos.x, y, pos.z);
   mesh.rotation.x += vel.z * dt * 2;
   mesh.rotation.z -= vel.x * dt * 2;
-  if (Math.abs(pos.x) > 58 || pos.z > 52 || pos.z < -42) {
+  if (!ballInPlayZone(pos.x, pos.z)) {
     pos.set(b.spawn.x, y, b.spawn.z);
     vel.set(0, 0, 0);
   }

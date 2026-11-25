@@ -6,6 +6,10 @@ import { Collision } from './physics.js';
 import { drumSound, chimeSound, kengSound, clapSound, unlockAudio } from './sound.js';
 import { createMultiplayer } from './multiplayer.js';
 import { createVoice } from './voice.js';
+import { createDayNight } from './daynight.js';
+import { createCampfire } from './campfire.js';
+import { armSchoolOst, tickSchoolOst, toggleSchoolOst, isSchoolOstEnabled } from './schoolOst.js';
+import { createFlashlight } from './flashlight.js';
 import { toggleClassroomDoor } from './classroom.js';
 import { mountBike, dismountBike, syncBikeVisual } from './bike.js';
 import {
@@ -63,6 +67,7 @@ scene.add(sky);
 const clouds = new THREE.Group();
 {
   const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xdde6ee, emissiveIntensity: 0.55, fog: false, flatShading: true });
+  clouds.userData.mat = mat;
   const geo = new THREE.IcosahedronGeometry(1, 1);
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2 + (i % 3) * 0.3, r = 220 + (i % 4) * 50;
@@ -80,7 +85,8 @@ const clouds = new THREE.Group();
   scene.add(clouds);
 }
 
-scene.add(new THREE.HemisphereLight(0xdfefff, 0x7a6a4a, 1.15));
+const hemi = new THREE.HemisphereLight(0xdfefff, 0x7a6a4a, 1.15);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.7);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -92,6 +98,10 @@ const SUN_OFFSET = new THREE.Vector3(38, 70, 30);
 
 // ---------- world ----------
 const world = buildWorld(scene);
+// ngày / đêm theo giờ Việt Nam (thử: ?gio=22, ?tocdo=600)
+const dayNight = createDayNight({ scene, sky, sun, hemi, fog: scene.fog, renderer, clouds, cloudMat: clouds.userData.mat, world });
+let campfire = null; // tạo sau khi có npcs
+let flashlight = null;
 let collected = 0;
 const TOTAL = world.collectibles.length;
 $('total').textContent = TOTAL;
@@ -99,7 +109,7 @@ function pushStats() {
   if (!started) return;
   mp.reportStats?.(collected, mp.notes?.length ?? 0);
 }
-const exteriorBounds = { minX: -95, maxX: 95, minZ: -43.4, maxZ: 52.6 };
+const exteriorBounds = { minX: -95, maxX: 95, minZ: -43.4, maxZ: 124 };
 const col = new Collision(world.colliders, exteriorBounds);
 
 // ---------- player ----------
@@ -189,6 +199,7 @@ function applyProfile(p) {
   player.char = createCharacter(lookFromProfile(p));
   player.char.root.add(nameTag(tagLines(p)));
   scene.add(player.char.root);
+  flashlight?.bindCharacter(player.char);
   const [l1, l2] = tagLines(p);
   $('hudName').textContent = l1;
   $('hudInfo').textContent = l2;
@@ -199,14 +210,7 @@ function applyProfile(p) {
 
 // ---------- NPCs (nhân vật hư cấu) ----------
 const NPC_DEFS = [
-  { name: 'Lan', kind: 'aodai', x: -8, z: 4, lines: ['Hôm nay thứ Hai nên tụi mình mặc áo dài đấy!', 'Cậu đã tìm thấy trang lưu bút nào chưa? Nghe nói có một trang ở chỗ nhà xe.'] },
-  { name: 'Minh', kind: 'boy', x: 2, z: 21, bag: 0x333333, lines: ['Chiều nay lớp mình đá bóng với 12A2, cậu ra cổ vũ nhé!', 'Trống trên sân khấu là để vào lớp, còn kẻng treo ở gốc cây cổ thụ bên trái sân trong là báo ra chơi đấy.'] },
-  { name: 'Hoa', kind: 'aodai', x: -20, z: 19, static: true, face: Math.PI / 2, lines: ['Mùa phượng nở là mùa thi… nhanh thật.', 'Tớ đang ôn thi học sinh giỏi Văn, run quá!'] },
-  { name: 'Trang', kind: 'girl', x: -18.6, z: 19, static: true, face: -Math.PI / 2, lines: ['Hoa ơi, chép giùm tớ bài Lí hôm qua nhé.', 'Trường mình được gọi là “ngôi trường của những thủ khoa” đó cậu biết không?'] },
-  { name: 'Tuấn', kind: 'boy', x: 14, z: 28, bag: 0x8a2d2d, lines: ['Sáng nào tớ cũng đạp xe hơn 5 cây số tới trường.', 'Cuối cổng có biển “Kỷ cương – Tình thương – Trách nhiệm”, cậu đọc chưa?'] },
-  { name: 'Ngọc', kind: 'aodai', x: 20, z: -4, lines: ['Tuần sau trường mình tập văn nghệ trên sân khấu kia.', 'Băng rôn trên dãy nhà bên phải ghi “Hiền tài là nguyên khí quốc gia” — câu đó khắc trên bia Văn Miếu đấy.'] },
-  { name: 'Dũng', kind: 'boy', x: -4, z: 26, bag: 0x2f6f3f, lines: ['Sáng thứ Hai cả trường xếp hàng chào cờ trước sân khấu ở sân trong.', 'Ra ngoài cổng mà xem hàng cau vua với cây phượng, đẹp lắm.'] },
-  // trực cổng: thầy Thanh và đội Sao Đỏ
+  // Trực cổng — không thêm học sinh “default” lang thang sân
   { name: 'Thầy Thanh', kind: 'boy', shirt: 0xf4f6f8, pants: 0x2f3542, x: -4.3, z: 34.5, teacher: true, gateWatch: true, gatePatrol: true, homeX0: -16, homeX1: 10, homeZ0: 30.5, homeZ1: 41.5, face: 0.25,
     lines: ['Sơ vin vào em, tóc tai gọn gàng vào!', 'Đi học đúng giờ, mặc đúng đồng phục, đeo huy hiệu Đoàn đầy đủ nhé.', 'Xe đạp phải dắt bộ qua cổng, để đúng chỗ trong nhà xe.', 'Ngoài cổng đông quá — nhớ trật tự, đừng chen hàng quán ăn vặt.'],
     greet: 'Sơ vin vào em, tóc tai gọn gàng vào!' },
@@ -231,7 +235,6 @@ const NPC_DEFS = [
     menu: ['• Kem que / sữa chua hộp: 8–12k', '• Xiên que, nem chua: 10k', '• Kẹo kéo / bánh gạo: 5k'],
     lines: ['Kem que, kẹo kéo, sữa chua hộp — bọn học sinh hay mua nhất.', 'Bà có xiên que: thịt xiên, nem chua rán.', 'Trời lạnh bà bán khoai lang nướng luôn.'],
     greet: 'Ăn vặt gì không cháu? Kẹo que còn nhiều.' },
-  { name: 'Thầy chủ nhiệm', kind: 'boy', shirt: 0x9fc3e6, pants: 0x4a4a4a, x: -13, z: -19, static: true, teacher: true, face: 0.6, lines: ['Chào em! Nhớ học bài cũ trước khi vào lớp nhé.', 'Trường mình thành lập từ tháng 9 năm 1961 đấy, đã hơn 65 năm rồi.'] },
 ];
 const npcs = NPC_DEFS.map(d => {
   const char = createCharacter({ kind: d.kind, bag: d.bag ?? null, shirt: d.shirt, pants: d.pants, armband: d.armband, cap: d.cap, badge: d.teacher || d.staff ? false : undefined });
@@ -306,6 +309,11 @@ addEventListener('keydown', e => {
   if ((e.code === 'Digit4' || e.code === 'KeyV') && !e.repeat) { triggerClap(); e.preventDefault(); return; }
   if (e.code === 'KeyB' && !e.repeat) { dismountBikeAnywhere(); e.preventDefault(); return; }
   if (e.code === 'Digit0' && !e.repeat) { clearPlayerPose(); e.preventDefault(); return; }
+  if (e.code === 'KeyL' && !e.repeat) {
+    flashlight?.toggle(dayNight.info?.night ?? 0);
+    e.preventDefault();
+    return;
+  }
   keys.add(e.code);
 });
 addEventListener('keyup', e => keys.delete(e.code));
@@ -432,6 +440,7 @@ function toast(text, ms = 2600) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (t.hidden = true), ms);
 }
+flashlight = createFlashlight({ scene, camera, toast });
 function showDialog(title, text, kicker = '') {
   $('dlgKicker').textContent = kicker;
   $('dlgTitle').textContent = title;
@@ -624,6 +633,22 @@ const mp = createMultiplayer({
     },
   },
 });
+function syncMusicBtn() {
+  const on = isSchoolOstEnabled();
+  const btn = $('musicBtn');
+  if (!btn) return;
+  btn.textContent = on ? 'Nhạc' : 'Nhạc: tắt';
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.title = on ? 'Tắt nhạc nền (OST FRANK)' : 'Bật nhạc nền';
+}
+$('musicBtn')?.addEventListener('click', () => {
+  unlockAudio();
+  toggleSchoolOst();
+  syncMusicBtn();
+  toast(isSchoolOstEnabled() ? 'Đã bật nhạc nền' : 'Đã tắt nhạc nền', 2400);
+});
+syncMusicBtn();
+
 $('bookBtn').addEventListener('click', () => (bookOpen ? closeGuestbook() : openGuestbook()));
 $('bxhBtn')?.addEventListener('click', () => (boardOpen ? closeLeaderboard() : openLeaderboard()));
 $('galClose')?.addEventListener('click', () => { galleryOpen = false; closeGallery(); releaseGameFocus(); });
@@ -1035,6 +1060,16 @@ function use() {
     mp.act('keng');
     return;
   }
+  if (current.action === 'campfire') {
+    const seat = campfire?.seatFor(player);
+    if (!seat) { toast('Hết chỗ ngồi rồi, đứng sưởi cũng ấm!', 2500); return; }
+    player.pos.set(seat.x, 0, seat.z);
+    player.facing = seat.face;
+    player.vel.set(0, 0, 0);
+    player.pose = 'sit';
+    toast('🔥 Ngồi quây quần bên lửa trại — đi hoặc nhảy để đứng dậy', 3200);
+    return;
+  }
   if (current.action === 'gallery') {
     openGallery(current.image, current.title, current.text);
     galleryOpen = true;
@@ -1280,20 +1315,29 @@ function updateNPCs(dt) {
       n.facing = angLerp(n.facing, n.face, Math.min(1, dt * 3));
     } else if (n.wait > 0) {
       n.wait -= dt;
-    } else if (n.mode === 'ceremony' && n.target) {
-      tmp.subVectors(n.target, n.pos).setY(0);
+    } else if ((n.mode === 'ceremony' || n.mode === 'campfire') && n.target) {
+      // kẹt (cột, chậu cây…) thì rẽ sang một điểm phụ ngẫu nhiên rồi đi tiếp
+      if (n.detour && Math.hypot(n.detour.x - n.pos.x, n.detour.z - n.pos.z) < 0.6) n.detour = null;
+      if (n.route?.length && Math.hypot(n.route[0].x - n.pos.x, n.route[0].z - n.pos.z) < 0.9) n.route.shift();
+      tmp.subVectors(n.detour || n.route?.[0] || n.target, n.pos).setY(0);
       const d = tmp.length();
       if (d > 0.55) {
-        const v = 2.3;
+        const v = 2.6;
         const ox = n.pos.x, oz = n.pos.z;
         n.pos.addScaledVector(tmp.normalize(), v * dt);
         col.resolve(n.pos, n.feetY, 0.3);
         const pd = Math.hypot(n.pos.x - player.pos.x, n.pos.z - player.pos.z);
         if (pd < 0.65) { n.pos.x = ox; n.pos.z = oz; }
         speed = Math.hypot(n.pos.x - ox, n.pos.z - oz) / dt;
+        if (speed < v * 0.3) n.stuck += dt; else n.stuck = 0;
+        if (n.stuck > 0.8) {
+          n.stuck = 0;
+          const side = Math.random() < 0.5 ? 1 : -1;
+          n.detour = { x: n.pos.x + (-tmp.z * side) * 3 + (Math.random() - 0.5), z: n.pos.z + (tmp.x * side) * 3 + (Math.random() - 0.5) };
+        }
         n.facing = angLerp(n.facing, Math.atan2(tmp.x, tmp.z), Math.min(1, dt * 8));
       } else {
-        n.facing = angLerp(n.facing, toP, Math.min(1, dt * 4));
+        n.facing = angLerp(n.facing, n.faceTo ?? toP, Math.min(1, dt * 4));
       }
     } else {
       n.target ??= pickTarget(n);
@@ -1317,9 +1361,9 @@ function updateNPCs(dt) {
     }
     if (n.clapT > 0) n.clapT = Math.max(0, n.clapT - dt);
     n.feetY = col.groundAt(n.pos.x, n.pos.z, n.feetY);
-    n.char.root.position.set(n.pos.x, n.feetY, n.pos.z);
+    n.char.root.position.set(n.pos.x, n.feetY - (n.pose === 'sit' ? POSE_VISUAL_DROP.sit : 0), n.pos.z);
     n.char.root.rotation.y = n.facing;
-    const nPose = n.clapT > 0 ? 'clap' : null;
+    const nPose = n.clapT > 0 ? 'clap' : n.pose || null;
     n.char.update(dt, nPose ? 1.1 : speed, false, 0, nPose);
     if (n.bubble && performance.now() > n.bubbleUntil) { n.char.root.remove(n.bubble); n.bubble = null; }
   }
@@ -1394,7 +1438,14 @@ function frame() {
 
   const sx = Math.round(player.pos.x / 4) * 4, sz = Math.round(player.pos.z / 4) * 4;
   sun.target.position.set(shot ? 0 : sx, 0, shot ? 5 : sz);
-  sun.position.copy(sun.target.position).add(SUN_OFFSET);
+  const dnInfo = dayNight.tick(dt);
+  if (started) {
+    tickSchoolOst(dnInfo);
+    flashlight?.tick(dnInfo, player, { pitch, yaw });
+  }
+  campfire ??= createCampfire({ scene, world, npcs, toast });
+  campfire.tick(dt, t, dnInfo, started ? player : null);
+  sun.position.copy(sun.target.position).add(dayNight.sunOffset);
   sky.position.copy(camera.position);
   clouds.position.set(camera.position.x, 0, camera.position.z);
   clouds.rotation.y = t * 0.004;
@@ -1435,6 +1486,8 @@ function start() {
     setTimeout(() => toast('Joystick góc trái để đi; kéo vùng phải xoay camera; hai ngón zoom.', 5200), 1200);
   }
   mp.connect();
+  unlockAudio();
+  armSchoolOst();
   canvas.focus?.();
 }
 
@@ -1506,6 +1559,6 @@ addEventListener('keydown', e => {
 });
 
 applyProfile(profile);
-window.game = { player, npcs, world, keys, mp, get profile() { return profile; } };
+window.game = { player, npcs, world, keys, mp, get profile() { return profile; }, get campfire() { return campfire; } };
 if (params.has('start') || params.has('shot')) start();
 frame();

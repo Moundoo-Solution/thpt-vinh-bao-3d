@@ -238,6 +238,221 @@ export function signTexture(lines, o = {}) {
   return toTexture(c);
 }
 
+function drawGoldExtrudeTitle(ctx, text, cx, cy, maxPx, maxW) {
+  const size = fitFont(ctx, text, maxW, maxPx, '900');
+  ctx.font = `900 ${size}px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 10; i >= 1; i--) {
+    const t = i / 10;
+    ctx.fillStyle = `rgb(${Math.round(52 + 38 * t)}, ${Math.round(32 + 28 * t)}, ${Math.round(6 + 6 * t)})`;
+    ctx.fillText(text, cx + i * 1.05, cy + i * 1.12);
+  }
+  const face = ctx.createLinearGradient(0, cy - size * 0.58, 0, cy + size * 0.42);
+  face.addColorStop(0, '#fff8e6');
+  face.addColorStop(0.08, '#ffe97a');
+  face.addColorStop(0.22, '#f5d542');
+  face.addColorStop(0.48, '#e6b42e');
+  face.addColorStop(0.72, '#c98c1c');
+  face.addColorStop(0.9, '#9a6612');
+  face.addColorStop(1, '#7a4e0c');
+  ctx.fillStyle = face;
+  ctx.fillText(text, cx, cy);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText(text, cx - 1.2, cy - size * 0.14);
+  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = 'rgba(90,55,8,0.45)';
+  ctx.strokeText(text, cx, cy);
+  ctx.fillStyle = 'rgba(255,255,220,0.22)';
+  ctx.fillText(text, cx - 0.5, cy - size * 0.08);
+  return size;
+}
+
+// Biển POPPY PET — texture vẽ chuẩn (1 Zalo, FB + địa chỉ đủ).
+export function poppyPetBillboardTexture() {
+  const w = 1600;
+  const h = 443;
+  const [c, x] = makeCanvas(w, h);
+  const bg = x.createRadialGradient(w * 0.48, h * 0.32, 30, w * 0.5, h * 0.45, w * 0.92);
+  bg.addColorStop(0, '#b8f286');
+  bg.addColorStop(0.35, '#7ce05e');
+  bg.addColorStop(0.75, '#58c843');
+  bg.addColorStop(1, '#45b236');
+  x.fillStyle = bg;
+  x.fillRect(0, 0, w, h);
+  const rnd = seeded(771);
+  for (let i = 0; i < 11000; i++) {
+    x.fillStyle = `rgba(255,255,255,${rnd() * 0.04})`;
+    x.fillRect(rnd() * w, rnd() * h, 1.4, 1.4);
+  }
+  const title = 'POPPY PET';
+  const ty = h * 0.32;
+  drawGoldExtrudeTitle(x, title, w / 2, ty, 156, w * 0.92);
+  const sub = 'CẮT TỈA - THỨC ĂN - PHỤ KIỆN THÚ CƯNG';
+  let ts = fitFont(x, sub, w * 0.95, 52, '700');
+  x.font = `700 ${ts}px ${FONT}`;
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  const subY = h * 0.585;
+  x.fillStyle = '#0a0a0a';
+  x.fillText(sub, w / 2, subY);
+  const subW = x.measureText(sub).width;
+  const lineY = subY + ts * 0.62;
+  x.strokeStyle = '#101010';
+  x.lineWidth = 2.2;
+  x.beginPath();
+  x.moveTo(32, lineY);
+  x.lineTo(w / 2 - subW / 2 - 28, lineY);
+  x.moveTo(w / 2 + subW / 2 + 28, lineY);
+  x.lineTo(w - 32, lineY);
+  x.stroke();
+  const footY = h * 0.875;
+  const footSize = fitFont(x, 'ĐC : 118A TÂN HÒA - VĨNH BẢO', (w / 3) - 24, 36, '600');
+  x.font = `600 ${footSize}px ${FONT}`;
+  x.textAlign = 'left';
+  x.fillStyle = '#111';
+  const colW = w / 3;
+  x.fillText('ZALO : 0829.982.682', 24, footY);
+  x.fillText('FACEBOOK : PHẠM VĂN LỊCH', colW + 12, footY);
+  x.fillText('ĐC : 118A TÂN HÒA - VĨNH BẢO', colW * 2 + 8, footY);
+  x.strokeStyle = 'rgba(0,0,0,0.12)';
+  x.lineWidth = 3;
+  x.strokeRect(10, 10, w - 20, h - 20);
+  return toTexture(c);
+}
+
+// Biển quảng cáo Tý Cưng — lan can xanh đối diện cổng trường (Vinh Quang 2).
+export function tyCungBillboardTexture() {
+  const [c, x] = makeCanvas(1200, 900);
+  const g = x.createLinearGradient(0, 0, 0, 900);
+  g.addColorStop(0, '#ececef');
+  g.addColorStop(1, '#dcdfe3');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 1200, 900);
+  x.strokeStyle = '#5a5a5a';
+  x.lineWidth = 10;
+  x.strokeRect(18, 18, 1164, 864);
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  const cx = 600;
+  const yTitle = 310;
+  const yTag = 500;
+  const yAddr = 640;
+  x.fillStyle = '#2f73b8';
+  let tsize = fitFont(x, 'Tý Cưng', 1000, 200, '900');
+  x.font = `900 ${tsize}px ${FONT}`;
+  x.fillText('Tý Cưng', cx, yTitle);
+  x.strokeStyle = '#1b4f86';
+  x.lineWidth = 4;
+  x.strokeText('Tý Cưng', cx, yTitle);
+  x.fillStyle = '#1a1a1a';
+  tsize = fitFont(x, 'Thời Trang Cho Cả Gia Đình', 960, 68, 'bold');
+  x.font = `bold ${tsize}px ${FONT}`;
+  x.fillText('Thời Trang Cho Cả Gia Đình', cx, yTag);
+  x.fillStyle = '#444';
+  tsize = fitFont(x, 'Vinh Quang 2 · Vĩnh Bảo · Hải Phòng', 920, 52, '600');
+  x.font = `600 ${tsize}px ${FONT}`;
+  x.fillText('Vinh Quang 2 · Vĩnh Bảo · Hải Phòng', cx, yAddr);
+  return toTexture(c);
+}
+
+// Sao pháo hoa (tâm sáng, viền mờ).
+export function fireworkSparkTexture() {
+  const [c, x] = makeCanvas(128, 128);
+  const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.12, 'rgba(255,245,200,1)');
+  g.addColorStop(0.35, 'rgba(255,160,80,0.85)');
+  g.addColorStop(0.65, 'rgba(255,60,120,0.35)');
+  g.addColorStop(1, 'rgba(255,0,0,0)');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 128, 128);
+  return toTexture(c);
+}
+
+// Nồi luộc bánh chưng ngoài trời (mô phỏng ảnh báo chí / Pixabay: nồi gang, bánh xếp chặt, lá dong xanh).
+export function banhChungBoilTexture() {
+  const [c, x] = makeCanvas(512, 640);
+  const night = x.createLinearGradient(0, 0, 0, 640);
+  night.addColorStop(0, '#1a2530');
+  night.addColorStop(0.55, '#2a2218');
+  night.addColorStop(1, '#3d2818');
+  x.fillStyle = night;
+  x.fillRect(0, 0, 512, 640);
+  // lửa củi phản chiếu
+  const fire = x.createRadialGradient(256, 580, 10, 256, 580, 220);
+  fire.addColorStop(0, 'rgba(255,180,60,0.55)');
+  fire.addColorStop(0.5, 'rgba(255,90,20,0.15)');
+  fire.addColorStop(1, 'rgba(255,0,0,0)');
+  x.fillStyle = fire;
+  x.fillRect(0, 380, 512, 260);
+  // nồi gang
+  x.fillStyle = '#2b2b2e';
+  x.beginPath();
+  x.ellipse(256, 520, 200, 52, 0, 0, Math.PI * 2);
+  x.fill();
+  const potGrad = x.createLinearGradient(80, 200, 430, 520);
+  potGrad.addColorStop(0, '#4a4a50');
+  potGrad.addColorStop(0.35, '#1e1e22');
+  potGrad.addColorStop(1, '#0d0d10');
+  x.fillStyle = potGrad;
+  x.fillRect(108, 200, 296, 330);
+  x.fillStyle = '#5a5a62';
+  x.fillRect(96, 188, 320, 24);
+  x.fillStyle = '#3a3a42';
+  x.fillRect(108, 210, 296, 12);
+  // nước sôi
+  x.fillStyle = 'rgba(120,150,170,0.35)';
+  x.fillRect(120, 240, 272, 38);
+  for (let i = 0; i < 14; i++) {
+    const bx = 135 + i * 18 + (i % 3) * 4;
+    x.beginPath();
+    x.arc(bx, 252 + (i % 2) * 4, 4 + (i % 3), 0, Math.PI * 2);
+    x.fillStyle = 'rgba(200,220,235,0.4)';
+    x.fill();
+  }
+  // xếp bánh chưng trong nồi (vuông lá dong)
+  function banh(cx, cy, w, h, rot = 0) {
+    x.save();
+    x.translate(cx, cy);
+    x.rotate(rot);
+    x.fillStyle = '#2d6b3a';
+    x.fillRect(-w / 2, -h / 2, w, h);
+    x.strokeStyle = '#1e4a28';
+    x.lineWidth = 3;
+    x.strokeRect(-w / 2, -h / 2, w, h);
+    x.strokeStyle = '#3f8a4a';
+    x.lineWidth = 1;
+    for (let k = -w / 2 + 8; k < w / 2; k += 14) {
+      x.beginPath();
+      x.moveTo(k, -h / 2);
+      x.lineTo(k + 6, h / 2);
+      x.stroke();
+    }
+    x.fillStyle = '#c9a227';
+    x.fillRect(-w / 2 + 6, -h / 2 + 6, w - 12, 4);
+    x.restore();
+  }
+  banh(256, 360, 120, 100, 0.05);
+  banh(210, 310, 95, 78, -0.12);
+  banh(305, 305, 92, 76, 0.1);
+  banh(170, 365, 88, 72, 0.2);
+  banh(340, 360, 90, 74, -0.08);
+  banh(255, 280, 100, 82, 0);
+  // khói
+  for (let i = 0; i < 8; i++) {
+    x.beginPath();
+    x.ellipse(220 + i * 14, 150 + (i % 3) * 18, 28 + i * 3, 50 + i * 5, 0.3, 0, Math.PI * 2);
+    x.fillStyle = `rgba(220,220,220,${0.08 + i * 0.02})`;
+    x.fill();
+  }
+  x.fillStyle = 'rgba(255,255,255,0.75)';
+  x.font = '600 22px "Helvetica Neue", Arial, sans-serif';
+  x.textAlign = 'center';
+  x.fillText('Nồi bánh chưng luộc', 256, 56);
+  return toTexture(c);
+}
+
 // Băng rôn dọc: mỗi chữ một dòng.
 export function verticalBannerTexture(words) {
   const [c, x] = makeCanvas(160, 800);
@@ -669,4 +884,26 @@ export function plateAtlas(names) {
   const tex = toTexture(c);
   tex.anisotropy = 8;
   return { tex, cells, aspect: cw / ch };
+}
+
+// Lớp đèn cửa sổ ban đêm cho mặt tiền (emissiveMap): nền đen, cửa sổ/ô thoáng vàng ấm; vài phòng tắt đèn cho tự nhiên.
+export function facadeLightsTexture(withDoor = true, seed = 3) {
+  const [c, x] = makeCanvas(512, 512);
+  const r = seeded(seed);
+  x.fillStyle = '#000';
+  x.fillRect(0, 0, 512, 512);
+  const warm = ['#ffd27a', '#ffe3a0', '#ffc462'];
+  const wx = withDoor ? 220 : 120, ww = withDoor ? 250 : 280;
+  // 4 ô kính × 2 hàng, mỗi ô sáng ngẫu nhiên
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
+    if (r() < 0.22) continue;
+    x.fillStyle = warm[Math.floor(r() * warm.length)];
+    const cx = wx + (ww / 4) * i + 5, cy = j ? 269 : 175, cw = ww / 4 - 10, ch = j ? 102 : 86;
+    x.fillRect(cx, cy, cw, ch);
+  }
+  if (withDoor) {
+    x.fillStyle = '#ffd27a';
+    for (let i = 0; i < 6; i++) x.fillRect(46 + i * 19, 126, 8, 34);
+  }
+  return toTexture(c, true);
 }
